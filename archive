@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Terminal Navigator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', 'Consolas', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            overflow-x: hidden;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            height: 100vh;
+        }
+        
+        body::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .section {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            position: relative;
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+            background: #0a0a0a;
+            border-bottom: 1px solid #00ff00;
+        }
+        
+        .section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 255, 0, 0.03) 0px,
+                transparent 1px,
+                transparent 2px,
+                rgba(0, 255, 0, 0.03) 3px
+            );
+            pointer-events: none;
+            z-index: 2;
+        }
+        
+        .video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .video-placeholder {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.7) contrast(1.1);
+            display: block;
+        }
+        
+        .video-placeholder.hide {
+            display: none;
+        }
+        
+        .section video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.7) contrast(1.1);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .section video.loaded {
+            opacity: 1;
+        }
+        
+        .loading-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 14px;
+            opacity: 0.5;
+            z-index: 10;
+            display: none;
+        }
+        
+        .loading-indicator.show {
+            display: block;
+        }
+        
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            background: #0a0a0a;
+            z-index: 1000;
+            border-bottom: 1px solid #00ff00;
+            font-size: 12px;
+        }
+        
+        .top-bar-left {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+        }
+        
+        .top-bar-center {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+        }
+        
+        .tab {
+            font-size: 12px;
+            font-weight: 400;
+            opacity: 0.5;
+            cursor: pointer;
+            transition: opacity 0.3s;
+            padding: 5px 10px;
+        }
+        
+        .tab.active {
+            opacity: 1;
+            border-bottom: 1px solid #00ff00;
+        }
+        
+        .app-logo {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+        
+        .search-icon {
+            font-size: 14px;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+        
+        .right-sidebar {
+            position: fixed;
+            right: 12px;
+            bottom: 80px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 100;
+        }
+        
+        .sidebar-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .sidebar-button:active {
+            transform: scale(0.95);
+        }
+        
+        .sidebar-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 0;
+            background: transparent;
+            border: 1px solid #00ff00;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s;
+        }
+        
+        .sidebar-button:hover .sidebar-icon {
+            background: rgba(0, 255, 0, 0.1);
+        }
+        
+        .sidebar-icon.liked {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: #00ff00;
+            animation: terminalBlink 0.3s ease;
+        }
+        
+        @keyframes terminalBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .sidebar-text {
+            font-size: 10px;
+            font-weight: 400;
+            color: #00ff00;
+            text-shadow: none;
+        }
+        
+        .profile-pic {
+            width: 40px;
+            height: 40px;
+            border-radius: 0;
+            background: transparent;
+            border: 1px solid #00ff00;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 400;
+            position: relative;
+        }
+        
+        .follow-button {
+            width: 16px;
+            height: 16px;
+            background: #00ff00;
+            border-radius: 0;
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            border: 1px solid #0a0a0a;
+            color: #0a0a0a;
+        }
+        
+        .content-area {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            max-width: 60%;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 3;
+        }
+        
+        .username {
+            font-size: 14px;
+            font-weight: 400;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .verified {
+            font-size: 12px;
+        }
+        
+        .follow-text {
+            display: inline-block;
+            padding: 2px 12px;
+            border: 1px solid #00ff00;
+            border-radius: 0;
+            font-size: 11px;
+            font-weight: 400;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+        
+        .caption {
+            font-size: 13px;
+            line-height: 1.4;
+            margin-bottom: 8px;
+        }
+        
+        .hashtags {
+            font-size: 13px;
+            font-weight: 400;
+            opacity: 0.7;
+        }
+        
+        .music-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            font-size: 11px;
+            opacity: 0.7;
+        }
+        
+        .music-icon {
+            font-size: 10px;
+        }
+        
+        .music-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            background: #0a0a0a;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid #00ff00;
+            z-index: 1000;
+        }
+        
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            font-size: 9px;
+            opacity: 0.5;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        
+        .nav-item.active {
+            opacity: 1;
+        }
+        
+        .nav-icon {
+            font-size: 16px;
+        }
+        
+        .nav-item.create .nav-icon {
+            background: #00ff00;
+            color: #0a0a0a;
+            width: 30px;
+            height: 20px;
+            border-radius: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .nav-item.create .nav-icon::before {
+            content: '+';
+            font-size: 20px;
+            font-weight: 300;
+        }
+        
+        .heart-burst {
+            position: absolute;
+            font-size: 80px;
+            pointer-events: none;
+            animation: terminalHeartBurst 1s ease-out forwards;
+            z-index: 1000;
+            filter: none;
+        }
+        
+        @keyframes terminalHeartBurst {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0);
+            }
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1) translateY(-80px);
+            }
+        }
+        
+        .status {
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            padding: 4px 10px;
+            border-radius: 0;
+            font-size: 9px;
+            font-weight: 400;
+            background: transparent;
+            border: 1px solid #00ff00;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            opacity: 0.7;
+        }
+        
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 0;
+            background: #00ff00;
+            animation: terminalPulse 2s infinite;
+        }
+        
+        .status.connected .status-dot {
+            background: #00ff00;
+        }
+        
+        @keyframes terminalPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .section-number {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 180px;
+            font-weight: 400;
+            opacity: 0.03;
+            pointer-events: none;
+            user-select: none;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="top-bar-left">
+            <span class="search-icon">[?]</span>
+        </div>
+        <div class="top-bar-center">
+            <div class="tab">Following</div>
+            <div class="tab active">For You</div>
+        </div>
+        <div class="app-logo"></div>
+    </div>
+    
+    <div class="status" id="status">
+        <div class="status-dot"></div>
+        <span id="statusText">LIVE</span>
+    </div>
+    
+    <div class="section" data-section="0" data-video="src/timelapse.mp4">
+        <div class="video-container">
+            <img class="video-placeholder" src="https://via.placeholder.com/1080x1920/1a1a1a/00ff00?text=Week+1:+Character+Exercise" alt="Week 1">
+            <div class="loading-indicator"></div>
+        </div>
+        <div class="section-number">01</div>
+        <div class="content-area">
+            <div class="username">
+                @cps_archive <span class="verified">[v]</span>
+                <span class="follow-text">[Follow]</span>
+            </div>
+            <div class="caption">
+                Week 1: Character Exercise<br>
+                Double tap if you relate
+            </div>
+            <div class="hashtags">
+                #CPS #DigitalArchive #WeekOne #ArtSchool
+            </div>
+            <div class="music-info">
+                <span class="music-icon">~</span>
+                <span class="music-text">original sound - cps_archive</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section" data-section="1" data-video="src/week2.mp4">
+        <div class="video-container">
+            <img class="video-placeholder" src="https://via.placeholder.com/1080x1920/1a1a1a/00ff00?text=Week+2:+Place+Studies" alt="Week 2">
+            <div class="loading-indicator"></div>
+        </div>
+        <div class="section-number">02</div>
+        <div class="content-area">
+            <div class="username">
+                @cps_archive <span class="verified">[v]</span>
+                <span class="follow-text">[Follow]</span>
+            </div>
+            <div class="caption">
+                Week 2: Place Studies<br>
+                This one hits different fr fr
+            </div>
+            <div class="hashtags">
+                #Week2 #PlaceStudies #DigitalArt #Archive
+            </div>
+            <div class="music-info">
+                <span class="music-icon">~</span>
+                <span class="music-text">original sound - cps_archive</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section" data-section="2" data-video="src/week3.mp4">
+        <div class="video-container">
+            <img class="video-placeholder" src="https://via.placeholder.com/1080x1920/1a1a1a/00ff00?text=Week+3:+Simulation+Work" alt="Week 3">
+            <div class="loading-indicator"></div>
+        </div>
+        <div class="section-number">03</div>
+        <div class="content-area">
+            <div class="username">
+                @cps_archive <span class="verified">[v]</span>
+                <span class="follow-text">[Follow]</span>
+            </div>
+            <div class="caption">
+                Week 3: Simulation Work<br>
+                POV: your professor asked for "experimentation"
+            </div>
+            <div class="hashtags">
+                #Week3 #Simulation #StudentLife #Creative
+            </div>
+            <div class="music-info">
+                <span class="music-icon">~</span>
+                <span class="music-text">original sound - cps_archive</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section" data-section="3" data-video="src/week4.mp4">
+        <div class="video-container">
+            <img class="video-placeholder" src="https://via.placeholder.com/1080x1920/1a1a1a/00ff00?text=Week+4:+Character+Development" alt="Week 4">
+            <div class="loading-indicator"></div>
+        </div>
+        <div class="section-number">04</div>
+        <div class="content-area">
+            <div class="username">
+                @cps_archive <span class="verified">[v]</span>
+                <span class="follow-text">[Follow]</span>
+            </div>
+            <div class="caption">
+                Week 4: Character Development<br>
+                Not me staying up till 4am for this
+            </div>
+            <div class="hashtags">
+                #Week4 #AllNighter #ArtStudent #Relatable
+            </div>
+            <div class="music-info">
+                <span class="music-icon">~</span>
+                <span class="music-text">original sound - cps_archive</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section" data-section="4" data-video="src/week5.mp4">
+        <div class="video-container">
+            <img class="video-placeholder" src="https://via.placeholder.com/1080x1920/1a1a1a/00ff00?text=Week+5:+Spatial+Exploration" alt="Week 5">
+            <div class="loading-indicator"></div>
+        </div>
+        <div class="section-number">05</div>
+        <div class="content-area">
+            <div class="username">
+                @cps_archive <span class="verified">[v]</span>
+                <span class="follow-text">[Follow]</span>
+            </div>
+            <div class="caption">
+                Week 5: Spatial Exploration<br>
+                When the vibes are immaculate
+            </div>
+            <div class="hashtags">
+                #Week5 #3DSpace #DigitalWorlds #Aesthetic
+            </div>
+            <div class="music-info">
+                <span class="music-icon">~</span>
+                <span class="music-text">original sound - cps_archive</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section" data-section="5" data-video="src/week7.mp4">
+        <div class="video-container">
+            <img class="video-placeholder" src="https://via.placeholder.com/1080x1920/1a1a1a/00ff00?text=Week+6:+Integration+Studies" alt="Week 6">
+            <div class="loading-indicator"></div>
+        </div>
+        <div class="section-number">07</div>
+        <div class="content-area">
+            <div class="username">
+                @cps_archive <span class="verified">[v]</span>
+                <span class="follow-text">[Follow]</span>
+            </div>
+            <div class="caption">
+                Week 7: Integration Studies<br>
+                Tell me you're an art student without telling me
+            </div>
+            <div class="hashtags">
+                #Week6 #Integration #CreativeProcess #Art
+            </div>
+            <div class="music-info">
+                <span class="music-icon">~</span>
+                <span class="music-text">original sound - cps_archive</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section" data-section="6" data-video="src/timelapse.mp4">
+        <div class="video-container">
+            <img class="video-placeholder" src="https://via.placeholder.com/1080x1920/1a1a1a/00ff00?text=Week+7:+Final+Refinements" alt="Week 7">
+            <div class="loading-indicator"></div>
+        </div>
+        <div class="section-number">08</div>
+        <div class="content-area">
+            <div class="username">
+                @cps_archive <span class="verified">[v]</span>
+                <span class="follow-text">[Follow]</span>
+            </div>
+            <div class="caption">
+                Week 8: Final Refinements<br>
+                It's giving main character energy
+            </div>
+            <div class="hashtags">
+                #Week7 #Refinement #AlmostDone #Creative
+            </div>
+            <div class="music-info">
+                <span class="music-icon">~</span>
+                <span class="music-text">original sound - cps_archive</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section" data-section="7" data-video="src/week9.mp4">
+        <div class="video-container">
+            <img class="video-placeholder" src="https://via.placeholder.com/1080x1920/1a1a1a/00ff00?text=Week+8:+Archive+Complete" alt="Week 8">
+            <div class="loading-indicator"></div>
+        </div>
+        <div class="section-number">09</div>
+        <div class="content-area">
+            <div class="username">
+                @cps_archive <span class="verified">[v]</span>
+                <span class="follow-text">[Follow]</span>
+            </div>
+            <div class="caption">
+                Week 9: Archive Complete<br>
+                We made it bestie - Like if you survived CPS
+            </div>
+            <div class="hashtags">
+                #Week8 #Complete #Survived #ArchiveLife
+            </div>
+            <div class="music-info">
+                <span class="music-icon">~</span>
+                <span class="music-text">original sound - cps_archive</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="right-sidebar">
+        <div class="sidebar-button profile">
+            <div class="profile-pic">
+                [@]
+                <div class="follow-button">+</div>
+            </div>
+        </div>
+        
+        <div class="sidebar-button" id="likeButton">
+            <div class="sidebar-icon" id="likeIcon">[ ]</div>
+            <div class="sidebar-text" id="likeCount">0</div>
+        </div>
+        
+        <div class="sidebar-button">
+            <div class="sidebar-icon">[=]</div>
+            <div class="sidebar-text">127</div>
+        </div>
+        
+        <div class="sidebar-button">
+            <div class="sidebar-icon">[*]</div>
+            <div class="sidebar-text">89</div>
+        </div>
+        
+        <div class="sidebar-button">
+            <div class="sidebar-icon">[>]</div>
+            <div class="sidebar-text">Share</div>
+        </div>
+    </div>
+    
+    <div class="bottom-nav">
+        <div class="nav-item active">
+            <div class="nav-icon">[H]</div>
+            <div>Home</div>
+        </div>
+        <div class="nav-item">
+            <div class="nav-icon">[?]</div>
+            <div>Discover</div>
+        </div>
+        <div class="nav-item create">
+            <div class="nav-icon"></div>
+        </div>
+        <div class="nav-item">
+            <div class="nav-icon">[=]</div>
+            <div>Inbox</div>
+        </div>
+        <div class="nav-item">
+            <div class="nav-icon">[@]</div>
+            <div>Profile</div>
+        </div>
+    </div>
+    
+    <script>
+        // ============================================
+        // UNITY WEBSOCKET CONNECTION (PRESERVED!)
+        // ============================================
+        const WS_URL = 'wss://cpsarchive.onrender.com';
+        
+        let ws;
+        let currentSection = 0;
+        let totalLikes = 0;
+        let lastTapTime = 0;
+        const DOUBLE_TAP_DELAY = 300;
+        
+        // Video management variables
+        const videoCache = new Map();
+        const PRELOAD_RANGE = 2;
+        let observer;
+        let currentVideo = null;
+        
+        // ============================================
+        // UNITY WEBSOCKET FUNCTIONS (PRESERVED!)
+        // ============================================
+        function connectWebSocket() {
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = () => {
+                console.log('Connected to Unity');
+                document.getElementById('status').classList.add('connected');
+                document.getElementById('statusText').textContent = 'LIVE';
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket Error:', error);
+                document.getElementById('statusText').textContent = 'ERROR';
+            };
+            
+            ws.onclose = () => {
+                console.log('Disconnected from Unity');
+                document.getElementById('status').classList.remove('connected');
+                document.getElementById('statusText').textContent = 'OFFLINE';
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+        
+        function sendToUnity(message) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(`web:${message}`);
+                console.log('Sent to Unity:', message);
+            } else {
+                console.log('Unity not connected, would send:', message);
+            }
+        }
+        
+        // ============================================
+        // VIDEO PLAYBACK FUNCTIONS (NEW!)
+        // ============================================
+        function createVideoElement(section) {
+            let videoUrl = section.dataset.video;
+            if (!videoUrl || videoUrl === 'path/to/your/video.mp4' || videoUrl === '') {
+                console.log('No valid video URL for section', section.dataset.section);
+                return null;
+            }
+            
+            // Fix Windows backslashes to forward slashes for web
+            videoUrl = videoUrl.replace(/\\/g, '/');
+            console.log('Creating video element for:', videoUrl);
+            
+            // Check cache first
+            if (videoCache.has(videoUrl)) {
+                console.log('Using cached video');
+                return videoCache.get(videoUrl).cloneNode(true);
+            }
+            
+            const video = document.createElement('video');
+            video.src = videoUrl;
+            video.loop = true;
+            video.muted = true;
+            video.playsInline = true;
+            video.preload = 'auto';
+            
+            console.log('Video element created:', video.src);
+            
+            // Cache the video element
+            videoCache.set(videoUrl, video);
+            
+            return video;
+        }
+        
+        function loadVideo(section, autoplay = false) {
+            const container = section.querySelector('.video-container');
+            const placeholder = section.querySelector('.video-placeholder');
+            const loadingIndicator = section.querySelector('.loading-indicator');
+            
+            // Check if video already exists
+            let video = container.querySelector('video');
+            
+            if (!video) {
+                video = createVideoElement(section);
+                if (!video) return null; // No video URL specified or placeholder URL
+                
+                container.appendChild(video);
+            }
+            
+            // Show loading indicator
+            if (loadingIndicator) loadingIndicator.classList.add('show');
+            
+            // Handle video loading
+            const handleLoaded = () => {
+                video.classList.add('loaded');
+                if (placeholder) placeholder.classList.add('hide');
+                if (loadingIndicator) loadingIndicator.classList.remove('show');
+                
+                if (autoplay) {
+                    video.play().catch(err => console.log('Autoplay prevented:', err));
+                }
+            };
+            
+            const handleError = (e) => {
+                console.error('Video load error for:', section.dataset.video);
+                console.error('Error details:', e);
+                console.error('Video element:', video);
+                console.error('Video.error:', video.error);
+                
+                if (loadingIndicator) {
+                    loadingIndicator.textContent = 'Error loading video';
+                    loadingIndicator.style.color = '#ff0000';
+                }
+                
+                // Show placeholder again
+                if (placeholder) placeholder.classList.remove('hide');
+            };
+            
+            video.addEventListener('loadeddata', handleLoaded, { once: true });
+            video.addEventListener('error', handleError, { once: true });
+            
+            // Start loading if not already loaded
+            if (video.readyState < 3) {
+                video.load();
+            } else if (autoplay) {
+                video.play().catch(err => console.log('Autoplay prevented:', err));
+            }
+            
+            return video;
+        }
+        
+        function preloadAdjacentVideos(centerIndex) {
+            const sections = document.querySelectorAll('.section');
+            
+            // Preload videos in range
+            for (let i = Math.max(0, centerIndex - PRELOAD_RANGE); 
+                 i <= Math.min(sections.length - 1, centerIndex + PRELOAD_RANGE); 
+                 i++) {
+                loadVideo(sections[i], false);
+            }
+            
+            // Unload videos far from viewport to save memory
+            sections.forEach((section, index) => {
+                if (Math.abs(index - centerIndex) > PRELOAD_RANGE + 1) {
+                    const video = section.querySelector('video');
+                    if (video && !video.paused) {
+                        video.pause();
+                        video.currentTime = 0;
+                    }
+                }
+            });
+        }
+        
+        function playCurrentVideo() {
+            const sections = document.querySelectorAll('.section');
+            const currentSectionEl = sections[currentSection];
+            
+            // Pause all other videos
+            sections.forEach((section, index) => {
+                const video = section.querySelector('video');
+                if (video && index !== currentSection) {
+                    video.pause();
+                }
+            });
+            
+            // Play current video
+            const video = loadVideo(currentSectionEl, true);
+            if (video) {
+                currentVideo = video;
+                video.play().catch(err => console.log('Play prevented:', err));
+            }
+        }
+        
+        // ============================================
+        // INTERSECTION OBSERVER (REPLACES SCROLL LISTENER)
+        // ============================================
+        function setupIntersectionObserver() {
+            const options = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.5
+            };
+            
+            observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const section = entry.target;
+                        const index = parseInt(section.dataset.section);
+                        
+                        if (currentSection !== index) {
+                            currentSection = index;
+                            
+                            // SEND TO UNITY (PRESERVED!)
+                            sendToUnity(`SECTION_${index}`);
+                            console.log(`Switched to section ${index} - Unity camera should move`);
+                            
+                            // Play video
+                            playCurrentVideo();
+                            preloadAdjacentVideos(index);
+                        }
+                    }
+                });
+            }, options);
+            
+            document.querySelectorAll('.section').forEach(section => {
+                observer.observe(section);
+            });
+        }
+        
+        // ============================================
+        // LIKE/INTERACTION FUNCTIONS (PRESERVED!)
+        // ============================================
+        function handleDoubleTap(event) {
+            const currentTime = new Date().getTime();
+            const tapGap = currentTime - lastTapTime;
+            
+            if (tapGap < DOUBLE_TAP_DELAY && tapGap > 0) {
+                handleLike(event);
+            }
+            
+            lastTapTime = currentTime;
+        }
+        
+        function handleLike(event) {
+            totalLikes++;
+            
+            document.getElementById('likeCount').textContent = totalLikes;
+            
+            const likeIcon = document.getElementById('likeIcon');
+            const likeButton = document.getElementById('likeButton').querySelector('.sidebar-icon');
+            
+            likeButton.classList.add('liked');
+            likeIcon.textContent = '[x]';
+            
+            setTimeout(() => {
+                likeButton.classList.remove('liked');
+                likeIcon.textContent = '[ ]';
+            }, 500);
+            
+            const heart = document.createElement('div');
+            heart.className = 'heart-burst';
+            heart.textContent = '[x]';
+            
+            const x = event.clientX || (event.touches && event.touches[0].clientX) || window.innerWidth / 2;
+            const y = event.clientY || (event.touches && event.touches[0].clientY) || window.innerHeight / 2;
+            
+            heart.style.left = x + 'px';
+            heart.style.top = y + 'px';
+            document.body.appendChild(heart);
+            
+            setTimeout(() => heart.remove(), 1000);
+            
+            // SEND LIKE TO UNITY (PRESERVED!)
+            sendToUnity(`LIKE_${currentSection}`);
+            
+            console.log(`Liked section ${currentSection} - sent to Unity`);
+        }
+        
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        
+        // Connect to Unity WebSocket
+        connectWebSocket();
+        
+        // Setup Intersection Observer for smooth section detection
+        setupIntersectionObserver();
+        
+        // Initial load
+        const sections = document.querySelectorAll('.section');
+        if (sections.length > 0) {
+            preloadAdjacentVideos(0);
+            playCurrentVideo();
+        }
+        
+        // Event listeners
+        document.querySelectorAll('.section').forEach(section => {
+            section.addEventListener('click', handleDoubleTap);
+        });
+        
+        document.getElementById('likeButton').addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleLike(e);
+        });
+        
+        // Touch event handling for mobile
+        let lastTouchTime = 0;
+        document.addEventListener('touchend', (e) => {
+            const currentTime = new Date().getTime();
+            const tapGap = currentTime - lastTouchTime;
+            
+            if (tapGap < DOUBLE_TAP_DELAY && tapGap > 0) {
+                const touch = e.changedTouches[0];
+                handleLike({ clientX: touch.clientX, clientY: touch.clientY });
+            }
+            
+            lastTouchTime = currentTime;
+        });
+        
+        // Handle visibility change (pause when tab is hidden)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && currentVideo) {
+                currentVideo.pause();
+            } else if (!document.hidden && currentVideo) {
+                currentVideo.play().catch(err => console.log('Play prevented:', err));
+            }
+        });
+    </script>
+</body>
+</html>
